@@ -22,11 +22,12 @@ if not npm_executable:
         "npm was not found on PATH. Install Node.js or add npm to PATH, then retry."
     )
 
-print("Installing frontend dependencies...")
-subprocess.run([npm_executable, "install"], cwd=os.path.join(BASE_DIR, "frontend"), check=True)
-
-print("Building frontend...")
-subprocess.run([npm_executable, "run", "build"], cwd=os.path.join(BASE_DIR, "frontend"), check=True)
+frontend_dir = os.path.join(BASE_DIR, "frontend")
+if not os.path.isdir(os.path.join(frontend_dir, "node_modules")):
+    print("Installing frontend dependencies...")
+    subprocess.run([npm_executable, "install"], cwd=frontend_dir, check=True)
+else:
+    print("Frontend dependencies already installed.")
 
 print("Checking database connection...")
 import sys
@@ -45,7 +46,7 @@ with _temp_app.app_context():
 print("Starting Vite dev server (hot reload)...")
 vite_process = subprocess.Popen(
     [npm_executable, "run", "dev"],
-    cwd=os.path.join(BASE_DIR, "frontend"),
+    cwd=frontend_dir,
 )
 
 print("Starting Flask backend (hot reload)...")
