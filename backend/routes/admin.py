@@ -426,20 +426,36 @@ def run_vacuum():
     if not _authorized(usertype):
         return jsonify({"success": False, "error": "Unauthorized"}), 403
     try:
-        if db.engine.url.drivername != "postgresql":
-            return jsonify({"success": False, "error": "VACUUM is only available in PostgreSQL mode"}), 400
-        size_before = db.session.execute(
-            text("SELECT pg_database_size(current_database())")
-        ).scalar()
-        start = time.time()
-        db.session.execute(text("VACUUM ANALYZE"))
-        db.session.commit()
-        size_after = db.session.execute(
-            text("SELECT pg_database_size(current_database())")
-        ).scalar()
-        elapsed = round(time.time() - start, 2)
+        is_pg = db.engine.url.drivername == "postgresql"
+        if is_pg:
+            size_before = db.session.execute(
+                text("SELECT pg_database_size(current_database())")
+            ).scalar()
+            start = time.time()
+            db.session.execute(text("VACUUM"))
+            db.session.commit()
+            size_after = db.session.execute(
+                text("SELECT pg_database_size(current_database())")
+            ).scalar()
+            elapsed = round(time.time() - start, 2)
+        else:
+            _db_file = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "..", "db", "database.db"
+            )
+            size_before = os.path.getsize(_db_file) if os.path.exists(_db_file) else 0
+            start = time.time()
+            db.session.execute(text("VACUUM"))
+            db.session.execute(text("ANALYZE"))
+            db.session.execute(text("PRAGMA optimize"))
+            db.session.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
+            db.session.commit()
+            size_after = os.path.getsize(_db_file) if os.path.exists(_db_file) else 0
+            elapsed = round(time.time() - start, 2)
+
         space_saved = max(0, (size_before or 0) - (size_after or 0))
         result = {
+            "engine": "postgresql" if is_pg else "sqlite",
             "duration_seconds": elapsed,
             "size_before": size_before or 0,
             "size_after": size_after or 0,
@@ -455,14 +471,14 @@ def run_vacuum():
                     user_id=user_id,
                     module="maintenance",
                     action_type="optimize",
-                    action="Ran VACUUM ANALYZE",
-                    details={"space_saved": space_saved, "duration_seconds": elapsed},
+                    action="Ran VACUUM",
+                    details={"engine": result["engine"], "space_saved": space_saved, "duration_seconds": elapsed},
                 )
             except Exception:
                 pass
         return jsonify({
             "success": True,
-            "message": "VACUUM ANALYZE completed",
+            "message": "VACUUM completed",
             "data": result
         })
     except Exception as e:
@@ -499,6 +515,107 @@ def run_reindex():
             "success": True,
             "message": "Indexes rebuilt successfully",
             "data": {"duration_seconds": elapsed}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/admin/optimize/analyze", methods=["POST"])
+def run_analyze():
+    data = request.get_json() or {}
+    usertype = data.get("usertype")
+    if not _authorized(usertype):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+    try:
+        is_pg = db.engine.url.drivername == "postgresql"
+        start = time.time()
+        db.session.execute(text("ANALYZE"))
+        if not is_pg:
+            db.session.execute(text("PRAGMA optimize"))
+        db.session.commit()
+        elapsed = round(time.time() - start, 2)
+        user_id = data.get("user_id")
+        if user_id:
+            try:
+                log_activity(
+                    user_id=user_id,
+                    module="maintenance",
+                    action_type="optimize",
+                    action="Ran ANALYZE",
+                    details={"engine": "postgresql" if is_pg else "sqlite", "duration_seconds": elapsed},
+                )
+            except Exception:
+                pass
+        return jsonify({
+            "success": True,
+            "message": "ANALYZE completed",
+            "data": {
+                "engine": "postgresql" if is_pg else "sqlite",
+                "duration_seconds": elapsed,
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/admin/optimize/index-usage", methods=["GET"])
+def index_usage():
+    usertype = request.args.get("usertype", type=int)
+    if not _authorized(usertype):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+    try:
+        is_pg = db.engine.url.drivername == "postgresql"
+        rows = []
+        if is_pg:
+            result = db.session.execute(text("""
+                SELECT
+                    s.schemaname || '.' || t.relname AS table_name,
+                    i.relname AS index_name,
+                    COALESCE(s.idx_scan, 0) AS scans,
+                    COALESCE(pg_relation_size(i.oid), 0) AS size_bytes
+                FROM pg_stat_user_indexes s
+                JOIN pg_index x ON x.indexrelid = s.indexrelid
+                JOIN pg_class i ON i.oid = s.indexrelid
+                JOIN pg_class t ON t.oid = x.indrelid
+                ORDER BY COALESCE(s.idx_scan, 0) ASC, pg_relation_size(i.oid) DESC
+            """))
+            for table_name, index_name, scans, size_bytes in result:
+                if scans == 0:
+                    recommendation = "drop candidate"
+                elif scans < 50:
+                    recommendation = "review"
+                else:
+                    recommendation = "keep"
+                rows.append({
+                    "table": table_name,
+                    "index": index_name,
+                    "scans": int(scans),
+                    "size_bytes": int(size_bytes),
+                    "size_formatted": _format_size(int(size_bytes)),
+                    "recommendation": recommendation,
+                })
+        else:
+            result = db.session.execute(text(
+                "SELECT name, tbl_name FROM sqlite_master "
+                "WHERE type = 'index' AND name NOT LIKE 'sqlite_%' "
+                "ORDER BY tbl_name, name"
+            ))
+            for index_name, table_name in result:
+                rows.append({
+                    "table": table_name,
+                    "index": index_name,
+                    "scans": None,
+                    "size_bytes": 0,
+                    "size_formatted": "N/A",
+                    "recommendation": "review (no usage stats in SQLite)",
+                })
+        return jsonify({
+            "success": True,
+            "data": {
+                "engine": "postgresql" if is_pg else "sqlite",
+                "indexes": rows,
+            }
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

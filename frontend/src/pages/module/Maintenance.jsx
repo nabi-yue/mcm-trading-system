@@ -30,6 +30,8 @@ const Maintenance = () => {
   const [checkResult, setCheckResult] = useState(null);
   const [vacuumResult, setVacuumResult] = useState(null);
   const [reindexResult, setReindexResult] = useState(null);
+  const [analyzeResult, setAnalyzeResult] = useState(null);
+  const [indexUsage, setIndexUsage] = useState(null);
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupDays, setCleanupDays] = useState(90);
   const [cleanupItems, setCleanupItems] = useState({ logs: true, products: true, transfers: true });
@@ -210,6 +212,43 @@ const Maintenance = () => {
       }
     } catch {
       message.error('Reindex failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    setAnalyzeResult(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/optimize/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usertype: user.usertype, user_id: user.user_id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnalyzeResult(data.data);
+        message.success(data.message);
+      } else {
+        message.error(data.error);
+      }
+    } catch {
+      message.error('Analyze failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleIndexUsage = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/optimize/index-usage?usertype=${user.usertype}`);
+      const data = await res.json();
+      if (data.success) setIndexUsage(data.data);
+      else message.error(data.error);
+    } catch {
+      message.error('Failed to load index usage');
     } finally {
       setLoading(false);
     }
@@ -471,44 +510,127 @@ const Maintenance = () => {
       key: 'optimize',
       label: <span><BarChartOutlined /> Optimize</span>,
       children: (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Card title="Vacuum Database" size="small">
-              <Text>Reclaims unused space in the database file.</Text>
-              <br /><br />
-              <Button type="primary" onClick={handleVacuum} loading={loading}>
-                Run VACUUM
-              </Button>
-              {vacuumResult && (
-                <div style={{ marginTop: 12 }}>
-                  <Descriptions bordered column={1} size="small">
-                    <Descriptions.Item label="Size Before">{vacuumResult.size_before_formatted}</Descriptions.Item>
-                    <Descriptions.Item label="Size After">{vacuumResult.size_after_formatted}</Descriptions.Item>
-                    <Descriptions.Item label="Space Saved">{vacuumResult.space_saved_formatted}</Descriptions.Item>
-                    <Descriptions.Item label="Duration">{vacuumResult.duration_seconds}s</Descriptions.Item>
-                  </Descriptions>
-                </div>
-              )}
-            </Card>
-          </Col>
-          <Col xs={24} md={12}>
-            <Card title="Rebuild Indexes" size="small">
-              <Text>Rebuilds all database indexes for better query performance.</Text>
-              <br /><br />
-              <Button type="primary" onClick={handleReindex} loading={loading}>
-                Run REINDEX
-              </Button>
-              {reindexResult && (
-                <div style={{ marginTop: 12 }}>
-                  <Descriptions bordered column={1} size="small">
-                    <Descriptions.Item label="Duration">{reindexResult.duration_seconds}s</Descriptions.Item>
-                  </Descriptions>
-                  <Tag color="green" style={{ marginTop: 8 }}><CheckCircleOutlined /> Indexes rebuilt</Tag>
-                </div>
-              )}
-            </Card>
-          </Col>
-        </Row>
+        <>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Card title="Vacuum Database" size="small">
+                <Text>Reclaims unused space in the database file.</Text>
+                <br /><br />
+                <Button type="primary" onClick={handleVacuum} loading={loading}>
+                  Run VACUUM
+                </Button>
+                {vacuumResult && (
+                  <div style={{ marginTop: 12 }}>
+                    <Descriptions bordered column={1} size="small">
+                      <Descriptions.Item label="Engine">{vacuumResult.engine}</Descriptions.Item>
+                      <Descriptions.Item label="Size Before">{vacuumResult.size_before_formatted}</Descriptions.Item>
+                      <Descriptions.Item label="Size After">{vacuumResult.size_after_formatted}</Descriptions.Item>
+                      <Descriptions.Item label="Space Saved">{vacuumResult.space_saved_formatted}</Descriptions.Item>
+                      <Descriptions.Item label="Duration">{vacuumResult.duration_seconds}s</Descriptions.Item>
+                    </Descriptions>
+                  </div>
+                )}
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card title="Rebuild Indexes" size="small">
+                <Text>Rebuilds all database indexes for better query performance.</Text>
+                <br /><br />
+                <Button type="primary" onClick={handleReindex} loading={loading}>
+                  Run REINDEX
+                </Button>
+                {reindexResult && (
+                  <div style={{ marginTop: 12 }}>
+                    <Descriptions bordered column={1} size="small">
+                      <Descriptions.Item label="Duration">{reindexResult.duration_seconds}s</Descriptions.Item>
+                    </Descriptions>
+                    <Tag color="green" style={{ marginTop: 8 }}><CheckCircleOutlined /> Indexes rebuilt</Tag>
+                  </div>
+                )}
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24}>
+              <Card title="Update Statistics" size="small">
+                <Text>Refreshes the query planner's statistics so it can pick better indexes and join orders.</Text>
+                <br /><br />
+                <Button type="primary" onClick={handleAnalyze} loading={loading}>
+                  Run ANALYZE
+                </Button>
+                {analyzeResult && (
+                  <div style={{ marginTop: 12 }}>
+                    <Descriptions bordered column={1} size="small">
+                      <Descriptions.Item label="Engine">{analyzeResult.engine}</Descriptions.Item>
+                      <Descriptions.Item label="Duration">{analyzeResult.duration_seconds}s</Descriptions.Item>
+                    </Descriptions>
+                    <Tag color="green" style={{ marginTop: 8 }}><CheckCircleOutlined /> Statistics updated</Tag>
+                  </div>
+                )}
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+            <Col xs={24}>
+              <Card
+                title="Index Usage Report"
+                size="small"
+                extra={
+                  <Button onClick={handleIndexUsage} loading={loading && !indexUsage}>
+                    Load Index Usage
+                  </Button>
+                }
+              >
+                {indexUsage ? (
+                  <>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      Engine: {indexUsage.engine}. {indexUsage.indexes.length} index(es).
+                      {indexUsage.engine === 'sqlite' && ' SQLite does not track per-index usage; review the index list manually.'}
+                    </Text>
+                    <Table
+                      size="small"
+                      dataSource={indexUsage.indexes}
+                      rowKey={(r) => `${r.table}.${r.index}`}
+                      pagination={false}
+                      columns={[
+                        { title: 'Table', dataIndex: 'table', key: 'table' },
+                        { title: 'Index', dataIndex: 'index', key: 'index' },
+                        {
+                          title: 'Scans',
+                          dataIndex: 'scans',
+                          key: 'scans',
+                          align: 'right',
+                          render: (v) => (v === null || v === undefined ? 'N/A' : v.toLocaleString()),
+                          sorter: (a, b) => (a.scans ?? -1) - (b.scans ?? -1),
+                        },
+                        {
+                          title: 'Size',
+                          dataIndex: 'size_formatted',
+                          key: 'size_formatted',
+                          align: 'right',
+                          sorter: (a, b) => a.size_bytes - b.size_bytes,
+                        },
+                        {
+                          title: 'Recommendation',
+                          dataIndex: 'recommendation',
+                          key: 'recommendation',
+                          render: (v) => {
+                            const color = v === 'drop candidate' ? 'red' : v === 'review' ? 'orange' : 'green';
+                            return <Tag color={color}>{v}</Tag>;
+                          },
+                        },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <Text type="secondary">Click "Load Index Usage" to inspect index scan statistics and identify drop candidates.</Text>
+                )}
+              </Card>
+            </Col>
+          </Row>
+        </>
       ),
     },
     {
