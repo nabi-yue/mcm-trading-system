@@ -30,6 +30,21 @@ class PasswordResetToken(db.Model):
     user = db.relationship("User", backref="reset_tokens")
 
 
+class PasswordResetRequest(db.Model):
+    __tablename__ = "Password_Reset_Requests"
+    request_id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("Users.user_id"), nullable=False)
+    requester_note = db.Column(db.Text, nullable=True)
+    reset_code = db.Column(db.String(6), nullable=True)
+    status = db.Column(db.String(16), nullable=False, default="pending")
+    approved_by = db.Column(db.Integer, db.ForeignKey("Users.user_id"), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    user = db.relationship("User", foreign_keys=[user_id], backref="password_reset_requests")
+    approver = db.relationship("User", foreign_keys=[approved_by])
+
+
 
 class Location(db.Model):
     __tablename__ = "Locations"

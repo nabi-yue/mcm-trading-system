@@ -23,14 +23,14 @@ from models import db
 from models import (
     User, Location, Category, Product, Order, OrderItem,
     Payment, Inventory, StockTransfer, StockAdjustment, ActivityLog,
-    PasswordResetToken, StoreReport, StockRequest, Notification, ManualSection,
+    PasswordResetToken, PasswordResetRequest, StoreReport, StockRequest, Notification, ManualSection,
 )
 
 ALL_MODELS = [
     Location, User, Category, Product,
     Order, OrderItem, Payment, Inventory,
     StockTransfer, StockAdjustment, ActivityLog,
-    PasswordResetToken, StoreReport,
+    PasswordResetToken, PasswordResetRequest, StoreReport,
     StockRequest, Notification, ManualSection,
 ]
 

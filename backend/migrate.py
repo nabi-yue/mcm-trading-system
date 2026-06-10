@@ -19,7 +19,7 @@ with app.app_context():
     print(f"Existing tables: {tables}")
 
     # Ensure base tables exist
-    if 'Product_Varieties' not in tables or 'Notifications' not in tables:
+    if 'Product_Varieties' not in tables or 'Notifications' not in tables or 'Password_Reset_Requests' not in tables:
         db.create_all()
         db.session.commit()
         print("Created missing tables")

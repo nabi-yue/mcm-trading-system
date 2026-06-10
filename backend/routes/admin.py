@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import aliased
 from models import db, User, Product, Location, Category, Inventory
 from models import StockTransfer, StockAdjustment, ActivityLog, Order, OrderItem, Payment
-from models import PasswordResetToken, StockRequest, StoreReport, ManualSection, ProductVariety
+from models import PasswordResetToken, PasswordResetRequest, StockRequest, StoreReport, ManualSection, ProductVariety
 from utils.sorting import quick_sort
 from utils.activity_logger import log_activity
 from utils.backup_storage import (
@@ -29,6 +29,7 @@ BACKUP_MODELS = [
     ("Stock Transfers", StockTransfer), ("Stock Adjustments", StockAdjustment),
     ("Activity Logs", ActivityLog),
     ("Password Reset Tokens", PasswordResetToken),
+    ("Password Reset Requests", PasswordResetRequest),
     ("Stock Requests", StockRequest),
     ("Store Reports", StoreReport),
     ("Manual Sections", ManualSection),

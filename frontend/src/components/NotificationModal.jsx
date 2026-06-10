@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Avatar, Button, Modal, Descriptions, Tag, message } from 'antd'
+import { Avatar, Button, Modal, Descriptions, Tag, message, Input } from 'antd'
 import {
   CloseOutlined,
   CheckOutlined,
@@ -7,6 +7,7 @@ import {
   InboxOutlined,
   DeleteOutlined,
   EyeOutlined,
+  KeyOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '../context/AuthContext.jsx'
 import { qtyLabel } from '../utils/format.js'
@@ -20,6 +21,9 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
   const [notifLoading, setNotifLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [resetRequests, setResetRequests] = useState([])
+  const [approveModalOpen, setApproveModalOpen] = useState(false)
+  const [approvedCode, setApprovedCode] = useState(null)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -58,8 +62,18 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
     }
   }
 
+  const fetchResetRequests = () => {
+    if (!open || !user) return
+    if (user.usertype !== 1 && user.usertype !== 3) return
+    fetch(`/api/auth/reset-requests?usertype=${user.usertype}`)
+      .then((r) => r.json())
+      .then((data) => setResetRequests(data.success ? data.data : []))
+      .catch(() => setResetRequests([]))
+  }
+
   useEffect(() => {
     fetchData()
+    fetchResetRequests()
   }, [open, user])
 
   const groupedRequests = useMemo(() => {
@@ -137,6 +151,48 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
     }
     setRequests((prev) => prev.filter((r) => !ids.includes(r.request_id)))
     onUpdate?.()
+  }
+
+  const handleResetApprove = async (requestId) => {
+    try {
+      const res = await fetch(
+        `/api/auth/reset-requests/${requestId}/approve?usertype=${user.usertype}&approved_by=${user.user_id}`,
+        { method: 'POST' }
+      )
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setApprovedCode(data.data)
+        setApproveModalOpen(true)
+        setResetRequests((prev) =>
+          prev.map((r) =>
+            r.request_id === requestId ? { ...r, status: 'approved', reset_code: data.data.reset_code } : r
+          )
+        )
+        onUpdate?.()
+      } else {
+        message.error(data.error || 'Failed to approve request')
+      }
+    } catch {
+      message.error('Connection error')
+    }
+  }
+
+  const handleResetDecline = async (requestId) => {
+    try {
+      const res = await fetch(
+        `/api/auth/reset-requests/${requestId}/decline?usertype=${user.usertype}`,
+        { method: 'POST' }
+      )
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setResetRequests((prev) => prev.filter((r) => r.request_id !== requestId))
+        onUpdate?.()
+      } else {
+        message.error(data.error || 'Failed to decline request')
+      }
+    } catch {
+      message.error('Connection error')
+    }
   }
 
   const timeAgo = (iso) => {
@@ -245,6 +301,20 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
             >
               Pending
             </Button>
+            {(user.usertype === 1 || user.usertype === 3) && (
+              <Button
+                size="small"
+                onClick={() => setTab(tab === 'resets' ? null : 'resets')}
+                style={{
+                  borderRadius: 8, fontSize: 13, height: 32,
+                  background: tab === 'resets' ? '#1677ff' : '#f0f0f0',
+                  color: tab === 'resets' ? '#fff' : '#333',
+                  border: 'none', fontWeight: tab === 'resets' ? 600 : 400,
+                }}
+              >
+                Resets
+              </Button>
+            )}
             {(tab === null || tab === 'system') && notifications.length > 0 && (
               <Button
                 size="small"
@@ -390,7 +460,81 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
               ) : null}
             </>
           )}
-          {notifications.length === 0 && requests.length === 0 && (
+          {(tab === null || tab === 'resets') && (user.usertype === 1 || user.usertype === 3) && (
+            <>
+              {resetRequests.length > 0 ? (
+                resetRequests.map((rr) => (
+                  <div
+                    key={`reset-${rr.request_id}`}
+                    style={{ padding: '16px 24px', borderBottom: '1px solid #f5f5f5' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#fafafa'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ display: 'flex', gap: 12 }}>
+                      <Avatar size={44} style={{ background: '#722ed1', fontSize: 19, fontWeight: 600, flexShrink: 0 }}>
+                        {rr.username?.[0]?.toUpperCase() || '?'}
+                      </Avatar>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 16, color: '#333', lineHeight: 1.4 }}>
+                          <strong>{rr.username}</strong>
+                          {rr.location_name && <span style={{ color: '#8c8c8c', fontWeight: 400 }}> ({rr.location_name})</span>}
+                          {' '}requested <strong>password reset</strong>
+                        </div>
+                        <div style={{ fontSize: 15, color: '#8c8c8c', marginTop: 4 }}>
+                          {timeAgo(rr.created_at)}
+                          {rr.status === 'approved' && (
+                            <Tag color="green" style={{ marginLeft: 8 }}>Approved</Tag>
+                          )}
+                        </div>
+                        {rr.requester_note && (
+                          <div style={{ fontSize: 15, color: '#666', marginTop: 6, fontStyle: 'italic' }}>
+                            "{rr.requester_note}"
+                          </div>
+                        )}
+                        {rr.status === 'approved' && rr.reset_code && (
+                          <div style={{ marginTop: 8, padding: '8px 12px', background: '#f6ffed', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                            <KeyOutlined style={{ color: '#52c41a' }} />
+                            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 4, color: '#262626', fontFamily: 'monospace' }}>
+                              {rr.reset_code}
+                            </span>
+                          </div>
+                        )}
+                        {rr.status === 'pending' && (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                            <Button
+                              size="small"
+                              icon={<CloseCircleOutlined />}
+                              onClick={() => handleResetDecline(rr.request_id)}
+                              style={{
+                                borderRadius: 8, fontSize: 15, height: 36,
+                                border: '1px solid #ff4d4f', color: '#ff4d4f',
+                                background: '#fff', padding: '0 18px',
+                              }}
+                            >
+                              Decline
+                            </Button>
+                            <Button
+                              size="small"
+                              icon={<CheckOutlined />}
+                              onClick={() => handleResetApprove(rr.request_id)}
+                              style={{
+                                borderRadius: 8, fontSize: 15, height: 36,
+                                background: '#52c41a', borderColor: '#52c41a',
+                                color: '#fff', boxShadow: 'none', padding: '0 18px',
+                              }}
+                            >
+                              Approve
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : null}
+            </>
+          )}
+          {notifications.length === 0 && requests.length === 0 && resetRequests.length === 0 && (
             <div style={{ padding: '60px 24px', textAlign: 'center' }}>
               <InboxOutlined style={{ fontSize: 50, color: '#d9d9d9', marginBottom: 12 }} />
               <div style={{ fontSize: 17, color: '#8c8c8c' }}>No notifications</div>
@@ -508,6 +652,53 @@ const NotificationModal = ({ open, onClose, onUpdate }) => {
                 Note: "{viewGroup.description}"
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        title={
+          <span style={{ fontSize: 18, fontWeight: 600 }}>
+            <CheckOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+            Reset Code Generated
+          </span>
+        }
+        open={approveModalOpen}
+        onCancel={() => { setApproveModalOpen(false); setApprovedCode(null) }}
+        footer={[
+          <Button key="close" type="primary" onClick={() => { setApproveModalOpen(false); setApprovedCode(null) }}>
+            Done
+          </Button>,
+        ]}
+        width={420}
+        zIndex={1060}
+      >
+        {approvedCode && (
+          <div style={{ padding: '8px 0', textAlign: 'center' }}>
+            <div style={{ fontSize: 15, color: '#666', marginBottom: 16 }}>
+              Share this code with <strong>{approvedCode.username}</strong> to complete their password reset.
+            </div>
+            <div style={{
+              background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 12,
+              padding: '20px 24px', marginBottom: 16,
+            }}>
+              <div style={{ fontSize: 13, color: '#8c8c8c', marginBottom: 8 }}>Reset Code</div>
+              <Input
+                value={approvedCode.reset_code}
+                readOnly
+                style={{
+                  textAlign: 'center', fontSize: 32, fontWeight: 700, letterSpacing: 12,
+                  height: 64, color: '#262626', fontFamily: 'monospace',
+                  border: 'none', background: 'transparent', cursor: 'text',
+                }}
+              />
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 8 }}>
+                Expires: {new Date(approvedCode.expires_at).toLocaleString()}
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: '#8c8c8c' }}>
+              This code is valid for 24 hours from approval.
+            </div>
           </div>
         )}
       </Modal>

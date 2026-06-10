@@ -1,11 +1,8 @@
 import random
-import secrets
 from datetime import datetime, timedelta
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from config import APP_BASE_URL
-from models import db, User, Location, PasswordResetToken
-from flask_mail import Message
+from models import db, User, Location, PasswordResetToken, PasswordResetRequest
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -87,83 +84,176 @@ def register():
 
 @auth_bp.route("/api/auth/forgot-password", methods=["POST"])
 def forgot_password():
-    from flask import current_app
-    from flask_mail import Mail
-    
     data = request.get_json()
     if not data:
         return jsonify({"error": "Request body is required"}), 400
-    
-    email = data.get("email", "").strip()
-    if not email:
-        return jsonify({"error": "Email is required"}), 400
-    
-    user = User.query.filter_by(email=email).first()
+
+    username = data.get("username", "").strip()
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    user = User.query.filter_by(username=username).first()
     if not user:
-        return jsonify({"message": "If the email exists, a reset link will be sent"}), 200
-    
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now() + timedelta(hours=1)
-    
-    reset_token = PasswordResetToken(
-        user_id=user.user_id,
-        token=token,
-        expires_at=expires_at,
+        return jsonify({"message": "If the username exists, a reset request will be sent to an admin"}), 200
+
+    note = data.get("note", "").strip() or None
+
+    PasswordResetRequest.query.filter_by(user_id=user.user_id, status="pending").update(
+        {"status": "replaced"}
     )
-    db.session.add(reset_token)
+
+    req = PasswordResetRequest(
+        user_id=user.user_id,
+        requester_note=note,
+        status="pending",
+    )
+    db.session.add(req)
     db.session.commit()
-    
-    reset_url = f"{APP_BASE_URL}/reset-password/{token}"
-    
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }}
-            .container {{ max-width: 500px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-            .button {{ display: inline-block; padding: 12px 24px; background-color: #1890ff; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; }}
-            .footer {{ margin-top: 20px; font-size: 12px; color: #888; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2>Reset Your Password</h2>
-            <p>Hello {user.username},</p>
-            <p>We received a request to reset your password. Click the button below to create a new password:</p>
-            <p style="text-align: center; margin: 30px 0;">
-                <a href="{reset_url}" class="button">Reset Password</a>
-            </p>
-            <p>Or copy and paste this link in your browser:</p>
-            <p style="word-break: break-all; color: #1890ff;">{reset_url}</p>
-            <p>This link will expire in 1 hour.</p>
-            <p>If you did not request a password reset, please ignore this email.</p>
-            <div class="footer">
-                <p>Thank you,<br>MCM Trading System</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    try:
-        mail = current_app.extensions.get('mail')
-        if not mail:
-            from flask import Flask
-            mail = Mail(current_app._get_current_object())
-        
-        msg = Message(
-            subject="Reset Your Password - MCM Trading System",
-            recipients=[user.email],
-            html=html_content,
-            sender=("MCM Trading System", current_app.config['MAIL_USERNAME'])
+
+    return jsonify({"message": "If the username exists, a reset request will be sent to an admin"}), 200
+
+
+@auth_bp.route("/api/auth/reset-requests", methods=["GET"])
+def list_reset_requests():
+    usertype = request.args.get("usertype", type=int)
+    if not usertype or usertype not in (1, 3):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    requests_list = (
+        PasswordResetRequest.query
+        .join(User, PasswordResetRequest.user_id == User.user_id)
+        .join(Location, User.location_id == Location.location_id, isouter=True)
+        .filter(PasswordResetRequest.status.in_(["pending"]))
+        .order_by(PasswordResetRequest.created_at.desc())
+        .all()
+    )
+
+    approved_list = (
+        PasswordResetRequest.query
+        .join(User, PasswordResetRequest.user_id == User.user_id)
+        .filter(
+            PasswordResetRequest.status == "approved",
+            PasswordResetRequest.expires_at > datetime.now(),
         )
-        mail.send(msg)
-    except Exception as e:
-        print(f"Email error: {e}")
-        return jsonify({"error": "Failed to send email"}), 500
-    
-    return jsonify({"message": "If the email exists, a reset link will be sent"}), 200
+        .order_by(PasswordResetRequest.approved_at.desc())
+        .all()
+    )
+
+    all_requests = requests_list + approved_list
+
+    def serialize(r):
+        return {
+            "request_id": r.request_id,
+            "user_id": r.user.user_id,
+            "username": r.user.username,
+            "location_name": r.user.location.name if hasattr(r.user, 'location') and r.user.location else None,
+            "requester_note": r.requester_note,
+            "reset_code": r.reset_code if r.status == "approved" else None,
+            "status": r.status,
+            "approved_by": r.approved_by,
+            "approved_at": r.approved_at.isoformat() if r.approved_at else None,
+            "expires_at": r.expires_at.isoformat() if r.expires_at else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+
+    return jsonify({"success": True, "data": [serialize(r) for r in all_requests]}), 200
+
+
+@auth_bp.route("/api/auth/reset-requests/count", methods=["GET"])
+def count_reset_requests():
+    usertype = request.args.get("usertype", type=int)
+    if not usertype or usertype not in (1, 3):
+        return jsonify({"success": True, "count": 0}), 200
+
+    count = PasswordResetRequest.query.filter_by(status="pending").count()
+    return jsonify({"success": True, "count": count}), 200
+
+
+@auth_bp.route("/api/auth/reset-requests/<int:request_id>/approve", methods=["POST"])
+def approve_reset_request(request_id):
+    usertype = request.args.get("usertype", type=int)
+    approved_by = request.args.get("approved_by", type=int)
+    if not usertype or usertype not in (1, 3):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    reset_req = PasswordResetRequest.query.get(request_id)
+    if not reset_req:
+        return jsonify({"error": "Request not found"}), 404
+
+    if reset_req.status != "pending":
+        return jsonify({"error": f"Request is already {reset_req.status}"}), 400
+
+    code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+    reset_req.reset_code = code
+    reset_req.status = "approved"
+    reset_req.approved_by = approved_by
+    reset_req.approved_at = datetime.now()
+    reset_req.expires_at = datetime.now() + timedelta(hours=24)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "request_id": reset_req.request_id,
+            "reset_code": code,
+            "username": reset_req.user.username,
+            "expires_at": reset_req.expires_at.isoformat(),
+        },
+    }), 200
+
+
+@auth_bp.route("/api/auth/reset-requests/<int:request_id>/decline", methods=["POST"])
+def decline_reset_request(request_id):
+    usertype = request.args.get("usertype", type=int)
+    if not usertype or usertype not in (1, 3):
+        return jsonify({"error": "Unauthorized"}), 403
+
+    reset_req = PasswordResetRequest.query.get(request_id)
+    if not reset_req:
+        return jsonify({"error": "Request not found"}), 404
+
+    if reset_req.status != "pending":
+        return jsonify({"error": f"Request is already {reset_req.status}"}), 400
+
+    reset_req.status = "declined"
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Request declined"}), 200
+
+
+@auth_bp.route("/api/auth/reset-with-code", methods=["POST"])
+def reset_with_code():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    code = (data.get("reset_code") or "").strip()
+    new_password = data.get("new_password")
+
+    if not code or not new_password:
+        return jsonify({"error": "Reset code and new password are required"}), 400
+
+    reset_req = PasswordResetRequest.query.filter_by(
+        reset_code=code, status="approved"
+    ).first()
+
+    if not reset_req:
+        return jsonify({"error": "Invalid reset code"}), 400
+
+    if reset_req.expires_at and reset_req.expires_at < datetime.now():
+        reset_req.status = "expired"
+        db.session.commit()
+        return jsonify({"error": "Reset code has expired"}), 400
+
+    user = User.query.get(reset_req.user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user.password = generate_password_hash(new_password)
+    reset_req.status = "used"
+    db.session.commit()
+
+    return jsonify({"message": "Password reset successfully"}), 200
 
 
 @auth_bp.route("/api/auth/reset/<token>", methods=["GET"])

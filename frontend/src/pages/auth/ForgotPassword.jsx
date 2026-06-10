@@ -1,9 +1,10 @@
 import { Card, Button, Input, message, Typography, Form, Space } from 'antd'
-import { MailOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { UserOutlined, ArrowLeftOutlined, EditOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
 const { Title, Text } = Typography
+const { TextArea } = Input
 
 const ForgotPassword = () => {
   const [loading, setLoading] = useState(false)
@@ -15,13 +16,14 @@ const ForgotPassword = () => {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.email }),
+        body: JSON.stringify({ username: values.username, note: values.note || '' }),
       })
       const data = await res.json()
       if (res.ok) {
-        message.success('Password reset link sent to your email')
+        message.success('Your request has been submitted. An owner or admin will review it shortly.')
+        navigate('/login')
       } else {
-        message.error(data.error || 'Failed to send reset link')
+        message.error(data.error || 'Failed to submit request')
       }
     } catch {
       message.error('Connection error. Is the server running?')
@@ -31,10 +33,10 @@ const ForgotPassword = () => {
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
       justifyContent: 'center',
       background: '#f0f2f5'
     }}>
@@ -44,21 +46,26 @@ const ForgotPassword = () => {
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Title level={3} style={{ margin: 0 }}>Forgot Password</Title>
-          <Typography.Text type="secondary">Enter your email to receive a reset link</Typography.Text>
+          <Text type="secondary">Enter your username to request a password reset</Text>
         </div>
         <Form layout="vertical" onFinish={handleSubmit} autoComplete="off">
-          <Form.Item 
-            name="email" 
-            rules={[
-              { required: true, message: 'Please enter your email' },
-              { type: 'email', message: 'Please enter a valid email' }
-            ]}
+          <Form.Item
+            name="username"
+            rules={[{ required: true, message: 'Please enter your username' }]}
           >
-            <Input prefix={<MailOutlined />} placeholder="Your email" size="large" />
+            <Input prefix={<UserOutlined />} placeholder="Your username" size="large" />
+          </Form.Item>
+          <Form.Item name="note">
+            <TextArea
+              prefix={<EditOutlined />}
+              placeholder="Optional note for the admin (e.g., reason for request)"
+              size="large"
+              rows={3}
+            />
           </Form.Item>
           <Form.Item style={{ marginBottom: 12 }}>
             <Button type="primary" htmlType="submit" loading={loading} block size="large" style={{ borderRadius: 8 }}>
-              Send Reset Link
+              Submit Reset Request
             </Button>
           </Form.Item>
         </Form>

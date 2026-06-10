@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, Input, message, Typography, Form, Modal } from 'antd'
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined, KeyOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
 import bgImage from '../../../images/mancoImage.png'
@@ -12,13 +12,14 @@ const Login = () => {
   const { login } = useAuth()
   const [loading, setLoading] = useState(false)
   const [forgotVisible, setForgotVisible] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotUsername, setForgotUsername] = useState('')
+  const [forgotNote, setForgotNote] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleForgotPassword = async () => {
-    if (!forgotEmail) {
-      message.warning('Please enter your email address')
+    if (!forgotUsername) {
+      message.warning('Please enter your username')
       return
     }
     setForgotLoading(true)
@@ -26,13 +27,14 @@ const Login = () => {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail }),
+        body: JSON.stringify({ username: forgotUsername, note: forgotNote }),
       })
       const data = await res.json()
       if (res.ok) {
-        message.success('If the email exists, a reset link will be sent.')
+        message.success('Your request has been submitted. An owner or admin will review it shortly.')
         setForgotVisible(false)
-        setForgotEmail('')
+        setForgotUsername('')
+        setForgotNote('')
       } else {
         message.error(data.error || 'Something went wrong')
       }
@@ -115,6 +117,15 @@ const Login = () => {
               <Button type="link" style={{ padding: 0, fontSize: 14 }} onClick={() => setForgotVisible(true)}>
                 Forgot password?
               </Button>
+              <span style={{ color: '#d9d9d9', margin: '0 8px' }}>|</span>
+              <Button
+                type="link"
+                icon={<KeyOutlined />}
+                style={{ padding: 0, fontSize: 14 }}
+                onClick={() => navigate('/reset-with-code')}
+              >
+                I have a reset code
+              </Button>
             </div>
 
             <Form.Item style={{ marginBottom: 0 }}>
@@ -134,26 +145,33 @@ const Login = () => {
           <Modal
             title="Reset Password"
             open={forgotVisible}
-            onCancel={() => { setForgotVisible(false); setForgotEmail('') }}
+            onCancel={() => { setForgotVisible(false); setForgotUsername(''); setForgotNote('') }}
             footer={[
-              <Button key="cancel" onClick={() => { setForgotVisible(false); setForgotEmail('') }}>Cancel</Button>,
+              <Button key="cancel" onClick={() => { setForgotVisible(false); setForgotUsername(''); setForgotNote('') }}>Cancel</Button>,
               <Button key="send" type="primary" loading={forgotLoading} onClick={handleForgotPassword}>
-                Send Reset Link
+                Submit Reset Request
               </Button>,
             ]}
           >
             <div style={{ padding: '16px 0' }}>
               <Text style={{ display: 'block', marginBottom: 16, color: '#666' }}>
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your username and an owner or admin will review your request and provide a reset code.
               </Text>
               <Input
-                prefix={<MailOutlined style={{ color: '#bfbfbf' }} />}
-                placeholder="Your email address"
-                value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)}
+                prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder="Your username"
+                value={forgotUsername}
+                onChange={(e) => setForgotUsername(e.target.value)}
                 size="large"
-                style={{ borderRadius: 8, height: 48 }}
+                style={{ borderRadius: 8, height: 48, marginBottom: 12 }}
                 onPressEnter={handleForgotPassword}
+              />
+              <Input.TextArea
+                placeholder="Optional note (e.g., reason for reset)"
+                value={forgotNote}
+                onChange={(e) => setForgotNote(e.target.value)}
+                rows={2}
+                style={{ borderRadius: 8 }}
               />
             </div>
           </Modal>

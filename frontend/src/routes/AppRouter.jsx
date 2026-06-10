@@ -10,6 +10,7 @@ import AuthLayout from './../layouts/AuthLayout'
 import Login from './../pages/auth/Login'
 import ForgotPassword from './../pages/auth/ForgotPassword'
 import ResetPassword from './../pages/auth/ResetPassword'
+import ResetWithCode from './../pages/auth/ResetWithCode'
 
 import DashboardLayout from './../layouts/DashboardLayout'
 
@@ -43,6 +44,7 @@ const router = createBrowserRouter (
 
         <Route path="forgot-password" element={<ForgotPassword />} />
         <Route path="reset-password/:token" element={<ResetPassword />} />
+        <Route path="reset-with-code" element={<ResetWithCode />} />
       </Route>
 
       <Route element={<ProtectedRoute allowedRoles={["owner", "manager", "admin"]} />}>
