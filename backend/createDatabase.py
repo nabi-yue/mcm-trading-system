@@ -519,13 +519,13 @@ Manco (MCM) Trading is a full-featured inventory, stock, and sales management sy
 After logging in, the main interface consists of four areas:
 
 - **Sidebar** (left) — Navigation menu for all modules. Click any item to switch pages. The sidebar can be collapsed using the hamburger icon at the top.
-- **Topbar** (top) — Branch selector (to scope data to a specific location), notification bell, and Logout button.
+- **Topbar** (top) — Notification bell and Logout button.
 - **Content Area** (center) — The main workspace where the selected module is displayed.
 - **Footer** (bottom) — System copyright information.
 
-### Branch Selector
+### Branch Selection
 
-Use the **Branch** dropdown in the topbar to filter data by location:
+Branch filtering is available **within individual modules** (Inventory, Sales, Stock Management, Reports) via a location dropdown:
 
 - **All Branches** — Shows data across every location.
 - **Specific Branch** — Shows data for that location only.
@@ -634,7 +634,7 @@ The products table displays:
 
 ### Adjusting Stock
 
-1. Select a **specific branch** from the Topbar (not "All Branches").
+1. Select a **specific branch** from the location dropdown in the module header (not "All Branches").
 2. Click **Adjust** on the product row.
 3. Choose **Add Stock** (increase) or **Remove Stock** (decrease).
 4. Enter the quantity and a reason (e.g., "New shipment", "Damaged goods").
@@ -921,7 +921,7 @@ The table lists all registered users with:
 
 **Store Reports:**
 - Create, edit, and view issue reports.
-- **Issue Types:** Store Issue, Materials Issue, Software Issue.
+- **Issue Types:** Store Issue, Software Issue.
 - **Statuses:** Pending (orange), Resolved (green), Voided (red).
 - Click **Resolve** to mark a pending report as resolved (shows who resolved it and when).
 - Only the report creator can edit or void their own pending reports.
@@ -994,13 +994,14 @@ View key database metrics:
 
             # --- 9. Notifications ---
             ManualSection(role="owner", parent_id=None, sort_order=9, title="Notifications",
-                content="""The notification system keeps you informed of pending stock requests from managers.
+                content="""The notification system keeps you informed of pending stock requests from managers and system alerts.
 
 ### Bell Icon
 
 - Located in the **Topbar** next to the Logout button.
-- A badge shows the number of **pending stock requests**.
+- A badge shows the combined count of **pending stock requests** and **system notifications**.
 - The counter updates automatically every 30 seconds.
+- > **Note:** Notifications are fetched per-branch. When viewing "All Locations", the badge count may not reflect all pending requests.
 
 ### Pending Requests Panel
 
@@ -1094,7 +1095,7 @@ Manco (MCM) Trading is a full-featured inventory, stock, and sales management sy
 After logging in, the main interface consists of four areas:
 
 - **Sidebar** (left) — Navigation menu for your available modules. The sidebar can be collapsed using the hamburger icon at the top.
-- **Topbar** (top) — Shows your assigned branch name (you cannot switch branches), notification bell, and Logout button.
+- **Topbar** (top) — Notification bell and Logout button.
 - **Content Area** (center) — The main workspace where the selected module is displayed.
 - **Footer** (bottom) — System copyright information.
 
@@ -1365,53 +1366,68 @@ Click **View Details** to see a product's full movement history:
 - **Bulk Restock** — This feature is only available to the Owner.
 - **Restock All Below Threshold** — Owner-only."""),
 
-        ManualSection(role="manager", parent_id=None, sort_order=6, title="Reports (Store Reports)",
-            content="""As a Manager, your Reports access is limited to **Store Reports** — a tool for reporting issues at your branch. Access it via **Reports** in the sidebar.
+        ManualSection(role="manager", parent_id=None, sort_order=6, title="Reports",
+            content="""The Reports module provides data analysis and reporting tools. Access it via **Reports** in the sidebar.
 
-### Store Reports Overview
+### Inventory Reports
 
-The Store Reports page has a split-pane layout:
+**Stock Levels by Branch:**
+- Table view: Branch name, total items, total quantity.
+- Chart view: Bar chart visual comparison. Toggle between table/chart with the button in the card header.
+
+**Stock Distribution:**
+- Pie chart showing the proportion of stock across branches.
+- Use the **Filter by Product** dropdown to see distribution for a specific product.
+
+**Low Stock Items:**
+- Table listing all low-stock products with product name, SKU, branch, current stock, and reorder level.
+
+### Sales Reports
+
+- **Period Selector** — Choose 7, 30, or 90 days.
+- **Stats Cards** — Total Orders, Total Revenue, Avg Order Value.
+- **Daily Sales Trend** — Bar chart of revenue per day.
+- **Top Products** — Table of best-selling products by quantity and revenue.
+
+### Financial Reports
+
+- **Period Selector** — 30, 90, or 365 days.
+- **Stats Cards** — Total Revenue and Total Orders.
+- **Revenue by Date** — Table with date, order count, and revenue.
+- **Payment Methods** — Breakdown of transactions and amounts by payment method (Cash, Card, GCash, Bank Transfer).
+
+### Store Reports
+
+Create, edit, and view issue reports for your branch. The Store Reports tab has a split-pane layout:
 - **Left pane** — A list of all your submitted reports.
 - **Right pane** — Details of the selected report, or a form to create a new one.
 
-### Creating a New Report
-
+**Creating a New Report:**
 1. Click the **New Report** button.
-2. Fill in the form:
-   - **Title** (required) — A brief summary of the issue.
-   - **Issue Type** (required) — Select from: Store Issue, Materials Issue, Software Issue.
-   - **Description** (required) — Explain the issue in detail.
+2. Fill in the form: Title (required), Issue Type (required: Store Issue, Software Issue), Description (required).
 3. Click **Submit**.
 
-### Viewing a Report
+**Viewing a Report:**
+Click any report in the left list to view its details on the right pane, including title, issue type, status, branch, description, and submission date.
 
-Click any report in the left list to view its details on the right pane, including:
-- Title, issue type, and status
-- Branch where the report was filed
-- Description and submission date
-
-### Editing a Pending Report
-
+**Editing a Pending Report:**
 1. Select the report in the left list.
 2. Click **Edit** in the right pane.
 3. Update the title, issue type, or description.
 4. Click **Update**.
 
-### Voiding a Report
-
+**Voiding a Report:**
 1. Select the report you want to void.
 2. Click **Void**.
 3. Confirm the action. The report status changes to **voided**.
 
-### Marking a Report as Resolved
-
+**Marking a Report as Resolved:**
 If the issue is resolved, you can mark it yourself:
 1. Select the report.
 2. Click **Mark Resolved**.
 3. The status changes to **resolved** with a timestamp.
 
-### Status Colors
-
+**Status Colors:**
 - **Pending** — Orange. The report is awaiting action.
 - **Resolved** — Green. The issue has been addressed.
 - **Voided** — Red. The report was cancelled."""),
@@ -1483,7 +1499,7 @@ Manco (MCM) Trading is a full-featured inventory, stock, and sales management sy
 
 After logging in:
 - **Sidebar** — Navigation for your available modules (Dashboard, Maintenance, Reports, Settings, Help, About).
-- **Topbar** — Branch selector and Logout button.
+- **Topbar** — Notification bell and Logout button.
 - **Content Area** — The main workspace.
 
 ### Modules You Can Access
@@ -1603,7 +1619,7 @@ View user and module activity for a selected period (7, 30, or 90 days):
 **Per-Module Activity:**
 - A table showing each module name and the number of actions logged in it.
 
-**Store Reports:**
+**Store Reports (embedded in Activity tab):**
 
 This section lets you manage issue reports submitted by managers and owners:
 - Browse all reports in a table with user, branch, issue type, status, and date.
@@ -1613,7 +1629,6 @@ This section lets you manage issue reports submitted by managers and owners:
 
 **Issue Types:**
 - **Store Issue** — Problems related to the physical store.
-- **Materials Issue** — Problems with materials or supplies.
 - **Software Issue** — Problems with the system software.
 
 **Status Lifecycle:**

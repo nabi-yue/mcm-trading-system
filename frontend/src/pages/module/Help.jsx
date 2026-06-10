@@ -20,7 +20,7 @@ const faqData = [
   },
   {
     header: 'How do I change my password?',
-    content: 'Go to Settings, under the Profile section, enter your new password and click "Save Profile".',
+    content: 'Go to Settings, open the "Change Password" tab, enter your old password, new password, confirm it, and click "Change Password".',
   },
   {
     header: 'How do I generate a report?',
@@ -28,11 +28,11 @@ const faqData = [
   },
   {
     header: 'How do I adjust stock levels?',
-    content: 'Go to Stock Management, click "Adjust Stock" on a product row, choose Add or Remove, enter the quantity and reason, then click Save.',
+    content: 'Go to Stock Management, click the actions menu (⋮) on a product row and select "Adjust", choose Add or Remove, enter the quantity and reason, then click Save.',
   },
   {
     header: 'How do I transfer stock between branches?',
-    content: 'Go to Stock Management, click "Transfer" on a product row, select the source and destination branches, enter the quantity, and click Save.',
+    content: 'Go to Stock Management, click the actions menu (⋮) on a product row and select "Transfer", choose the source and destination branches, enter the quantity, and click Save.',
   },
   {
     header: 'How do I change a user\'s role or location?',
