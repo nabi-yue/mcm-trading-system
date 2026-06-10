@@ -61,7 +61,6 @@ const StockManagement = () => {
   const [requestLogVisible, setRequestLogVisible] = useState(false);
   const [requestLogs, setRequestLogs] = useState([]);
   const [requestLogLoading, setRequestLogLoading] = useState(false);
-  const [reorderSourceId, setReorderSourceId] = useState(null);
   const [branchNeeds, setBranchNeeds] = useState([]);
   const [branchNeedsLoading, setBranchNeedsLoading] = useState(false);
   const [storehousePendingRequests, setStorehousePendingRequests] = useState([]);
@@ -276,7 +275,6 @@ const StockManagement = () => {
 
   const handleSetReorder = (record) => {
     setSelectedRecord(record);
-    setReorderSourceId(record.auto_restock_source_id || null);
     reorderForm.resetFields();
     reorderForm.setFieldsValue({ reorder_level: record.reorder_level ? Number(record.reorder_level) : 0 });
     setReorderVisible(true);
@@ -296,17 +294,6 @@ const StockManagement = () => {
       });
       const data = await res.json();
       if (data.success) {
-        const prevSource = selectedRecord.auto_restock_source_id || null;
-        if (values.source_branch && values.source_branch !== prevSource) {
-          await fetch(`/api/products/${selectedRecord.product_id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              usertype: user.usertype,
-              auto_restock_source_id: values.source_branch,
-            }),
-          });
-        }
         Modal.success({ title: 'Success', content: 'Reorder level updated', centered: true });
         setReorderVisible(false);
         fetchData();
@@ -1316,17 +1303,10 @@ const StockManagement = () => {
       >
         <Form form={reorderForm} layout="vertical">
           <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-            Set the minimum stock threshold and choose which branch to auto-restock from when stock drops below this level.
+            Set the minimum stock threshold. Auto-restock will source from the storehouse.
           </Typography.Text>
           <Form.Item name="reorder_level" label="Reorder Level" rules={[{ required: true, message: 'Please enter reorder level' }]}>
             <InputNumber min={0} style={{ width: '100%' }} placeholder="Enter minimum stock level" />
-          </Form.Item>
-          <Form.Item name="source_branch" label="Auto-Restock Source Branch" initialValue={reorderSourceId}>
-            <Select placeholder="Select source branch" allowClear>
-              {locations.filter((l) => l.location_id !== selectedLocationId).map((loc) => (
-                <Select.Option key={loc.location_id} value={loc.location_id}>{loc.name}</Select.Option>
-              ))}
-            </Select>
           </Form.Item>
         </Form>
       </Modal>
