@@ -203,7 +203,10 @@ const StockManagement = () => {
   }, [isStorehouse, selectedLocationId, storehouse]);
 
   useEffect(() => {
-    if (isStorehouse) return;
+    if (isStorehouse) {
+      setLoading(false);
+      return;
+    }
     setCurrentPage(1);
     setMovementsCache({});
     fetchData(1);
